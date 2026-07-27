@@ -12,7 +12,7 @@ jobs:
       - name: Make postinstall executable
         run: chmod +x scripts/postinstall
 
-      - name: Build package
+      - name: Build component package
         run: |
           pkgbuild \
             --nopayload \
@@ -20,6 +20,12 @@ jobs:
             --identifier com.frhc.devtools.install \
             --version 1.0 \
             --install-location /tmp \
+            Component.pkg
+
+      - name: Build product archive (Intune-compatible)
+        run: |
+          productbuild \
+            --package Component.pkg \
             DevToolsInstall.pkg
 
       - name: Upload artifact
