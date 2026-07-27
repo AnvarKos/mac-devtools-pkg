@@ -1,0 +1,48 @@
+#!/bin/bash
+exec > /var/log/setup-dev-tools.log 2>&1
+echo "=== Setup started: $(date) ==="
+
+# --- CLT ---
+if ! xcode-select -p &>/dev/null; then
+    touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+    sleep 5
+    PROD=$(softwareupdate -l 2>/dev/null | grep -B 1 -E "Command Line Tools" | awk -F'"' '/Label:/ {print $2}' | tail -1)
+    [ -n "$PROD" ] && softwareupdate -i "$PROD" --verbose
+    rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+fi
+
+# --- Homebrew ---
+LOGGED_IN_USER=$(scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && ! /loginwindow/ { print $3 }')
+
+if [[ $(uname -m) == "arm64" ]]; then
+    BREW_PATH="/opt/homebrew/bin/brew"
+else
+    BREW_PATH="/usr/local/bin/brew"
+fi
+
+if [ ! -f "$BREW_PATH" ]; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+sudo -u "$LOGGED_IN_USER" bash -c "grep -qxF 'eval \"\$($BREW_PATH shellenv)\"' /Users/$LOGGED_IN_USER/.zprofile || echo 'eval \"\$($BREW_PATH shellenv)\"' >> /Users/$LOGGED_IN_USER/.zprofile"
+
+# --- Brewfile ---
+cat > /tmp/Brewfile << 'EOF'
+cask "claude"
+cask "claude-code"
+cask "yandex-disk"
+cask "obsidian"
+cask "notion"
+cask "asana"
+cask "keepassxc"
+cask "telegram"
+cask "discord"
+cask "whatsapp"
+cask "google-chrome"
+brew "python@3.12"
+EOF
+
+$BREW_PATH bundle install --file=/tmp/Brewfile
+
+echo "=== Setup finished: $(date) ==="
+exit 0
