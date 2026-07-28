@@ -26,6 +26,13 @@ else
     BREW_PATH="/usr/local/bin/brew"
 fi
 
+# Временно разрешаем пользователю sudo без пароля — Homebrew installer сам
+# запрашивает sudo, а неинтерактивно ввести пароль здесь невозможно.
+# Мы уже выполняемся от root (это postinstall pkg), поэтому это безопасно.
+SUDOERS_FILE="/etc/sudoers.d/99-frhc-brew-install"
+echo "$LOGGED_IN_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDOERS_FILE"
+chmod 440 "$SUDOERS_FILE"
+
 if [ ! -f "$BREW_PATH" ]; then
     echo "Installing Homebrew as user: $LOGGED_IN_USER"
     sudo -u "$LOGGED_IN_USER" -H bash -c "export NONINTERACTIVE=1; export HOME=$USER_HOME; /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
@@ -35,6 +42,7 @@ sudo -u "$LOGGED_IN_USER" bash -c "grep -qxF 'eval \"\$($BREW_PATH shellenv)\"' 
 
 if [ ! -f "$BREW_PATH" ]; then
     echo "ERROR: Homebrew installation failed, brew binary not found at $BREW_PATH"
+    rm -f "$SUDOERS_FILE"
     exit 1
 fi
 
@@ -56,6 +64,9 @@ EOF
 
 chown "$LOGGED_IN_USER" /tmp/Brewfile
 sudo -u "$LOGGED_IN_USER" -H bash -c "export HOME=$USER_HOME; $BREW_PATH bundle install --file=/tmp/Brewfile"
+
+# Убираем временное разрешение sudo без пароля
+rm -f "$SUDOERS_FILE"
 
 echo "=== Setup finished: $(date) ==="
 exit 0
