@@ -12,14 +12,46 @@ jobs:
       - name: Make postinstall executable
         run: chmod +x scripts/postinstall
 
+      - name: Create placeholder .app bundle
+        run: |
+          APP="root/Applications/FRHC Dev Tools.app"
+          mkdir -p "$APP/Contents/MacOS"
+          cat > "$APP/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleIdentifier</key>
+              <string>com.frhc.devtools.install</string>
+              <key>CFBundleName</key>
+              <string>FRHC Dev Tools</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleExecutable</key>
+              <string>frhc-devtools</string>
+              <key>LSUIElement</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          cat > "$APP/Contents/MacOS/frhc-devtools" << 'EOF'
+          #!/bin/bash
+          exit 0
+          EOF
+          chmod +x "$APP/Contents/MacOS/frhc-devtools"
+
       - name: Build component package
         run: |
           pkgbuild \
-            --nopayload \
+            --root root \
             --scripts scripts \
             --identifier com.frhc.devtools.install \
             --version 1.0 \
-            --install-location /tmp \
+            --install-location / \
             Component.pkg
 
       - name: Build product archive (Intune-compatible)
