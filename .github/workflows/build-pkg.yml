@@ -1,4 +1,4 @@
-name: Build macOS pkg
+name: Build macOS pkgs (all apps)
 
 on:
   workflow_dispatch:
@@ -6,25 +6,46 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        app:
+          - label: claudedesktop
+            name: Claude
+          - label: notion
+            name: Notion
+          - label: obsidian
+            name: Obsidian
+          - label: asana
+            name: Asana
+          - label: keepassxc
+            name: KeePassXC
+          - label: telegram
+            name: Telegram
+          - label: discord
+            name: Discord
+          - label: whatsapp
+            name: WhatsApp
+          - label: googlechromepkg
+            name: GoogleChrome
     steps:
       - uses: actions/checkout@v4
 
       - name: Make scripts executable
         run: |
-          chmod +x scripts/preinstall
-          chmod +x scripts/postinstall
+          chmod +x "scripts/${{ matrix.app.label }}/preinstall"
+          chmod +x "scripts/${{ matrix.app.label }}/postinstall"
 
       - name: Build component package
         run: |
           pkgbuild \
             --nopayload \
-            --scripts scripts \
-            --identifier com.frhc.googlechrome.install \
+            --scripts "scripts/${{ matrix.app.label }}" \
+            --identifier "com.frhc.${{ matrix.app.label }}.install" \
             --version 1.0 \
-            GoogleChromeInstall.pkg
+            "${{ matrix.app.name }}Install.pkg"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GoogleChromeInstall
-          path: GoogleChromeInstall.pkg
+          name: "${{ matrix.app.name }}Install"
+          path: "${{ matrix.app.name }}Install.pkg"
