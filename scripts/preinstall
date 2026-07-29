@@ -90,13 +90,13 @@ expectedTeamID="PWA5E9TQ59"
 if [[ ! -d "${dialogApp}" ]]; then
     echo "$name not found. Fetching latest release info..."
 
-    downloadURL=$(curl -sfL "https://api.github.com/repos/$gitusername/$gitreponame/releases/latest" | awk -F '"' "/browser_download_url/ && /$filetype\"/ { print \$4; exit }")
+    downloadURL=$(curl --connect-timeout 15 --max-time 60 -sfL "https://api.github.com/repos/$gitusername/$gitreponame/releases/latest" | awk -F '"' "/browser_download_url/ && /$filetype\"/ { print \$4; exit }")
     if [[ "$(echo $downloadURL | grep -ioE "https.*.$filetype")" == "" ]]; then
         echo "WARN  : GitHub API failed, trying failover."
-        downloadURL="https://github.com$(curl -sfL "$(curl -sfL "https://github.com/$gitusername/$gitreponame/releases/latest" | tr '"' "\n" | grep -i "expanded_assets" | head -1)" | tr '"' "\n" | grep -i "^/.*\/releases\/download\/.*\.$filetype" | head -1)"
+        downloadURL="https://github.com$(curl --connect-timeout 15 --max-time 60 -sfL "$(curl --connect-timeout 15 --max-time 60 -sfL "https://github.com/$gitusername/$gitreponame/releases/latest" | tr '"' "\n" | grep -i "expanded_assets" | head -1)" | tr '"' "\n" | grep -i "^/.*\/releases\/download\/.*\.$filetype" | head -1)"
     fi
 
-    appNewVersion=$(curl -sLI "https://github.com/$gitusername/$gitreponame/releases/latest" | grep -i "^location" | tr "/" "\n" | tail -1 | sed 's/[^0-9\.]//g')
+    appNewVersion=$(curl --connect-timeout 15 --max-time 60 -sLI "https://github.com/$gitusername/$gitreponame/releases/latest" | grep -i "^location" | tr "/" "\n" | tail -1 | sed 's/[^0-9\.]//g')
     echo "Installing $name version ${appNewVersion}…"
 
     tmpDir="$(mktemp -d || true)"
@@ -105,7 +105,7 @@ if [[ ! -d "${dialogApp}" ]]; then
     installationCount=0
     exitCode=9
     while [[ $installationCount -lt 3 && $exitCode -gt 0 ]]; do
-        curlDownload=$(curl -Ls "$downloadURL" -o "$tmpDir/$name.pkg" 2>&1)
+        curlDownload=$(curl --connect-timeout 15 --max-time 300 -Ls "$downloadURL" -o "$tmpDir/$name.pkg" 2>&1)
         curlDownloadStatus=$?
         if [[ $curlDownloadStatus -ne 0 ]]; then
             echo "ERROR : Download failed (status $curlDownloadStatus): $downloadURL"
@@ -186,7 +186,7 @@ echo "Downloading Installomator from main branch..."
 
 /bin/mkdir -p "$(/usr/bin/dirname "$installomatorPath")"
 
-/usr/bin/curl --fail --silent --show-error --location \
+/usr/bin/curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 \
     --output "$installomatorPath" \
     "$installomatorURL"
 
@@ -216,9 +216,24 @@ for entry in "${installomatorApps[@]}"; do
     dialogUpdate "progress: ${currentIndex}"
 
     perAppLog="${logDir}/${installomatorLabel}.log"
-    installomatorOptions="DEBUG=0 BLOCKING_PROCESS_ACTION=prompt_user_then_kill REOPEN=yes NOTIFY=silent"
+    installomatorOptions="DEBUG=0 BLOCKING_PROCESS_ACTION=kill REOPEN=yes NOTIFY=silent"
 
-    "$installomatorPath" "$installomatorLabel" $installomatorOptions >> "$perAppLog" 2>&1
+    # macOS doesn't ship GNU `timeout` by default, so we implement a portable
+    # watchdog: run Installomator in the background, wait up to 600s, kill if stuck.
+    "$installomatorPath" "$installomatorLabel" $installomatorOptions >> "$perAppLog" 2>&1 &
+    installomatorPID=$!
+    waitCount=0
+    while kill -0 "$installomatorPID" 2>/dev/null; do
+        sleep 5
+        ((waitCount+=5))
+        if [[ $waitCount -ge 600 ]]; then
+            echo "ERROR: $installomatorLabel install timed out after 600s, killing." >&2
+            kill -9 "$installomatorPID" 2>/dev/null
+            pkill -9 -f "Installomator.sh $installomatorLabel" 2>/dev/null
+            break
+        fi
+    done
+    wait "$installomatorPID" 2>/dev/null
     installResult=$?
 
     if [[ $installResult -ne 0 ]]; then
