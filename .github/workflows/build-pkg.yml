@@ -9,59 +9,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Make postinstall executable
-        run: chmod +x scripts/postinstall
-
-      - name: Create placeholder .app bundle
+      - name: Make scripts executable
         run: |
-          APP="root/Applications/FRHC Dev Tools.app"
-          mkdir -p "$APP/Contents/MacOS"
-          cat > "$APP/Contents/Info.plist" << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleIdentifier</key>
-              <string>com.frhc.devtools.install</string>
-              <key>CFBundleName</key>
-              <string>FRHC Dev Tools</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleVersion</key>
-              <string>1.0</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleExecutable</key>
-              <string>frhc-devtools</string>
-              <key>LSUIElement</key>
-              <true/>
-          </dict>
-          </plist>
-          EOF
-          cat > "$APP/Contents/MacOS/frhc-devtools" << 'EOF'
-          #!/bin/bash
-          exit 0
-          EOF
-          chmod +x "$APP/Contents/MacOS/frhc-devtools"
+          chmod +x scripts/preinstall
+          chmod +x scripts/postinstall
 
       - name: Build component package
         run: |
           pkgbuild \
-            --root root \
+            --nopayload \
             --scripts scripts \
-            --identifier com.frhc.devtools.install \
+            --identifier com.frhc.googlechrome.install \
             --version 1.0 \
-            --install-location / \
-            Component.pkg
-
-      - name: Build product archive (Intune-compatible)
-        run: |
-          productbuild \
-            --package Component.pkg \
-            DevToolsInstall.pkg
+            GoogleChromeInstall.pkg
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DevToolsInstall
-          path: DevToolsInstall.pkg
+          name: GoogleChromeInstall
+          path: GoogleChromeInstall.pkg
